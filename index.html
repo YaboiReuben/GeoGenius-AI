@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GeoGenius AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f2f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .game-container {
+            background-color: #ffffff;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 600px;
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            overflow: hidden;
+        }
+        .chat-history {
+            height: 400px;
+            overflow-y: auto;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 15px;
+            background-color: #f8fafc;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .message {
+            max-width: 80%;
+            padding: 10px 15px;
+            border-radius: 10px;
+            word-wrap: break-word;
+        }
+        .ai-message {
+            background-color: #e0f2fe; /* Light blue */
+            align-self: flex-start;
+            border-bottom-left-radius: 2px;
+        }
+        .user-message {
+            background-color: #d1fae5; /* Light green */
+            align-self: flex-end;
+            border-bottom-right-radius: 2px;
+        }
+        .input-area {
+            display: flex;
+            gap: 10px;
+        }
+        .loading-spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-left-color: #3b82f6;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .button-primary {
+            background-color: #3b82f6;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: background-color 0.2s;
+            box-shadow: 0 4px 10px rgba(59, 130, 246, 0.3);
+            border: none;
+            cursor: pointer;
+        }
+        .button-primary:hover {
+            background-color: #2563eb;
+        }
+        .button-primary:disabled {
+            background-color: #93c5fd;
+            cursor: not-allowed;
+        }
+        .button-secondary {
+            background-color: #6b7280;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: background-color 0.2s;
+            box-shadow: 0 4px 10px rgba(107, 114, 128, 0.3);
+            border: none;
+            cursor: pointer;
+        }
+        .button-secondary:hover {
+            background-color: #4b5563;
+        }
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background-color: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            text-align: center;
+            max-width: 400px;
+        }
+        .difficulty-buttons, .gamemode-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <h1 class="text-3xl font-bold text-center text-gray-800">GeoGenius AI</h1>
+        <div id="chat-history" class="chat-history">
+            </div>
+
+        <div id="loading-indicator" class="hidden text-center">
+            <div class="loading-spinner"></div>
+            <p class="mt-2 text-gray-600">AI is thinking...</p>
+        </div>
+
+        <div class="input-area">
+            <input type="text" id="user-input" placeholder="Your guess or answer..." class="flex-grow p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" list="country-suggestions">
+            <datalist id="country-suggestions"></datalist>
+            <button id="submit-guess" class="button-primary">Submit</button>
+        </div>
+
+        <div class="flex justify-center gap-4 mt-4">
+            <button id="new-game" class="button-secondary">New Game</button>
+            <button id="give-up" class="button-secondary">Give Up</button>
+        </div>
+    </div>
+
+    <div id="game-modal" class="modal hidden">
+        <div class="modal-content">
+            <p id="modal-message" class="text-lg font-semibold text-gray-800 mb-4"></p>
+            <button id="modal-action-button" class="button-primary">OK</button>
+        </div>
+    </div>
+
+    <div id="gamemode-modal" class="modal hidden">
+        <div class="modal-content">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">Choose Game Mode</h2>
+            <div class="gamemode-buttons">
+                <button id="standard-mode" class="button-primary">Standard Mode</button>
+                <button id="capital-quest" class="button-primary">Capital Quest</button>
+                <button id="endless-mode" class="button-primary">Endless Mode</button>
+                <button id="hot-cold" class="button-primary">Hot & Cold</button>
+                <button id="one-shot" class="button-primary">One Shot</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="difficulty-modal" class="modal hidden">
+        <div class="modal-content">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">Choose Difficulty</h2>
+            <div class="difficulty-buttons">
+                <button id="easy-difficulty" class="button-primary">Easy</button>
+                <button id="medium-difficulty" class="button-primary">Medium</button>
+                <button id="hard-difficulty" class="button-primary">Hard</button>
+                <button id="insane-difficulty" class="button-primary">Insane</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        // Firebase imports
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, deleteDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // DOM Elements
+        const chatHistoryDiv = document.getElementById('chat-history');
+        const userInput = document.getElementById('user-input');
+        const submitGuessBtn = document.getElementById('submit-guess');
+        const newGameBtn = document.getElementById('new-game');
+        const giveUpBtn = document.getElementById('give-up');
+        const loadingIndicator = document.getElementById('loading-indicator');
+        const gameModal = document.getElementById('game-modal');
+        const modalMessage = document.getElementById('modal-message');
+        const modalActionButton = document.getElementById('modal-action-button');
+        const countrySuggestionsDatalist = document.getElementById('country-suggestions');
+
+        const gamemodeModal = document.getElementById('gamemode-modal');
+        const standardModeBtn = document.getElementById('standard-mode');
+        const capitalQuestBtn = document.getElementById('capital-quest');
+        const endlessModeBtn = document.getElementById('endless-mode');
+        const hotColdBtn = document.getElementById('hot-cold');
+        const oneShotBtn = document.getElementById('one-shot');
+
+        const difficultyModal = document.getElementById('difficulty-modal');
+        const easyBtn = document.getElementById('easy-difficulty');
+        const mediumBtn = document.getElementById('medium-difficulty');
+        const hardBtn = document.getElementById('hard-difficulty');
+        const insaneBtn = document.getElementById('insane-difficulty');
+
+
+        // Firebase variables
+        let app;
+        let db;
+        let auth;
+        let userId = 'anonymous';
+        let isAuthReady = false;
+
+        // Game state variables
+        let chatHistory = [];
+        let gameActive = false;
+        let aiGuessedCountry = '';
+        let currentDifficulty = ''; // Will be set by user
+        let currentGameMode = ''; // Will be set by user
+        let guessCount = 0; // For One Shot mode
+
+        // List of countries for autocomplete
+        const allCountries = [
+            "Afghanistan", "Albania", "Algeria", "Andorra", "Angola", "Antigua and Barbuda", "Argentina", "Armenia", "Australia", "Austria",
+            "Azerbaijan", "Bahamas", "Bahrain", "Bangladesh", "Barbados", "Belarus", "Belgium", "Belize", "Benin", "Bhutan",
+            "Bolivia", "Bosnia and Herzegovina", "Botswana", "Brazil", "Brunei", "Bulgaria", "Burkina Faso", "Burundi", "Cabo Verde", "Cambodia",
+            "Cameroon", "Canada", "Central African Republic", "Chad", "Chile", "China", "Colombia", "Comoros", "Congo (Brazzaville)", "Congo (Kinshasa)",
+            "Costa Rica", "Croatia", "Cuba", "Cyprus", "Czechia", "Denmark", "Djibouti", "Dominica", "Dominican Republic", "Ecuador",
+            "Egypt", "El Salvador", "Equatorial Guinea", "Eritrea", "Estonia", "Eswatini", "Ethiopia", "Fiji", "Finland", "France",
+            "Gabon", "Gambia", "Georgia", "Germany", "Ghana", "Greece", "Grenada", "Guatemala", "Guinea", "Guinea-Bissau",
+            "Guyana", "Haiti", "Honduras", "Hungary", "Iceland", "India", "Indonesia", "Iran", "Iraq", "Ireland",
+            "Israel", "Italy", "Jamaica", "Japan", "Jordan", "Kazakhstan", "Kenya", "Kiribati", "Korea, North", "Korea, South",
+            "Kosovo", "Kuwait", "Kyrgyzstan", "Laos", "Latvia", "Lebanon", "Lesotho", "Liberia", "Libya", "Liechtenstein",
+            "Lithuania", "Luxembourg", "Madagascar", "Malawi", "Malaysia", "Maldives", "Mali", "Malta", "Marshall Islands", "Mauritania",
+            "Mauritius", "Mexico", "Micronesia", "Moldova", "Monaco", "Mongolia", "Montenegro", "Morocco", "Mozambique", "Myanmar",
+            "Namibia", "Nauru", "Nepal", "Netherlands", "New Zealand", "Nicaragua", "Niger", "Nigeria", "North Macedonia", "Norway",
+            "Oman", "Pakistan", "Palau", "Palestine", "Panama", "Papua New Guinea", "Paraguay", "Peru", "Philippines", "Poland",
+            "Portugal", "Qatar", "Romania", "Russia", "Rwanda", "Saint Kitts and Nevis", "Saint Lucia", "Saint Vincent and the Grenadines", "Samoa", "San Marino",
+            "Sao Tome and Principe", "Saudi Arabia", "Senegal", "Serbia", "Seychelles", "Sierra Leone", "Singapore", "Slovakia", "Slovenia", "Solomon Islands",
+            "Somalia", "South Africa", "South Sudan", "Spain", "Sri Lanka", "Sudan", "Suriname", "Sweden", "Switzerland", "Syria",
+            "Taiwan", "Tajikistan", "Tanzania", "Thailand", "Timor-Leste", "Togo", "Tonga", "Trinidad and Tobago", "Tunisia", "Turkey",
+            "Turkmenistan", "Tuvalu", "Uganda", "Ukraine", "United Arab Emirates", "United Kingdom", "United States", "Uruguay", "Uzbekistan", "Vanuatu",
+            "Vatican City", "Venezuela", "Vietnam", "Yemen", "Zambia", "Zimbabwe"
+        ];
+
+        // Populate the datalist with all countries on load
+        function populateCountrySuggestions() {
+            countrySuggestionsDatalist.innerHTML = '';
+            allCountries.forEach(country => {
+                const option = document.createElement('option');
+                option.value = country;
+                countrySuggestionsDatalist.appendChild(option);
+            });
+        }
+
+        // Firebase initialization and authentication
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+
+        try {
+            app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+
+            onAuthStateChanged(auth, async (user) => {
+                if (user) {
+                    userId = user.uid;
+                    console.log("User authenticated:", userId);
+                    isAuthReady = true;
+                    if (!gameActive) {
+                        startGame();
+                    }
+                } else {
+                    console.log("No user signed in. Attempting anonymous sign-in.");
+                    try {
+                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                            await signInWithCustomToken(auth, __initial_auth_token);
+                        } else {
+                            await signInAnonymously(auth);
+                        }
+                    } catch (error) {
+                        console.error("Firebase anonymous sign-in failed:", error);
+                        showMessageModal("Error: Could not sign in to Firebase. Please try again.", false);
+                        isAuthReady = false;
+                    }
+                }
+            });
+        } catch (error) {
+            console.error("Firebase initialization failed:", error);
+            showMessageModal("Error: Could not initialize Firebase. Please check your configuration.", false);
+            isAuthReady = false;
+        }
+
+        // Modified addMessage function to control UI display
+        async function addMessage(sender, text, timestamp = null, saveToDb = true, displayInUI = true) {
+            if (displayInUI) {
+                const messageDiv = document.createElement('div');
+                messageDiv.classList.add('message');
+                if (sender === 'ai') {
+                    messageDiv.classList.add('ai-message');
+                } else {
+                    messageDiv.classList.add('user-message');
+                }
+                messageDiv.textContent = text;
+                chatHistoryDiv.appendChild(messageDiv);
+                chatHistoryDiv.scrollTop = chatHistoryDiv.scrollHeight;
+            }
+
+            // Always add to in-memory chat history for AI context
+            chatHistory.push({ role: sender === 'ai' ? 'model' : 'user', text: text });
+
+            // Save to Firestore if it's a new message and Firebase is ready
+            if (saveToDb && isAuthReady) {
+                try {
+                    await addDoc(collection(db, `artifacts/${appId}/users/${userId}/chat_messages`), {
+                        sender: sender,
+                        text: text,
+                        timestamp: timestamp || serverTimestamp()
+                    });
+                } catch (e) {
+                    console.error("Error adding document to Firestore: ", e);
+                    showMessageModal("Error saving chat message. Your game might not be saved.", false);
+                }
+            }
+        }
+
+        async function loadChatHistory() {
+            if (!isAuthReady) {
+                console.log("Firebase not ready, cannot load chat history.");
+                return;
+            }
+
+            chatHistoryDiv.innerHTML = '';
+            chatHistory = [];
+            gameActive = false;
+            setControlsEnabled(false);
+
+            try {
+                const q = collection(db, `artifacts/${appId}/users/${userId}/chat_messages`);
+                const querySnapshot = await getDocs(q);
+                let messages = [];
+                querySnapshot.forEach((doc) => {
+                    messages.push(doc.data());
+                });
+
+                messages.sort((a, b) => (a.timestamp?.toDate() || 0) - (b.timestamp?.toDate() || 0));
+
+                messages.forEach(msg => {
+                    // When loading from DB, always display
+                    addMessage(msg.sender, msg.text, msg.timestamp, false, true); 
+                });
+
+                if (messages.length > 0) {
+                    const lastAiResponse = messages[messages.length - 1].text.toLowerCase();
+                    if (lastAiResponse.includes("congratulations") || lastAiResponse.includes("you won") || lastAiResponse.includes("you guessed it") || lastAiResponse.includes("the country was")) {
+                        gameActive = false;
+                        console.log("Loaded completed game. gameActive set to:", gameActive);
+                        showMessageModal("Game Over! Click 'New Game' to play again.", true);
+                        newGameBtn.disabled = false;
+                        submitGuessBtn.disabled = true;
+                        userInput.disabled = true;
+                    } else {
+                        gameActive = true;
+                        setControlsEnabled(true);
+                        addMessage('ai', "Welcome back! Let's continue our game. What's your next guess or question?");
+                    }
+                } else {
+                    // No history, show game mode selection
+                    showGameModeModal();
+                }
+            } catch (e) {
+                console.error("Error loading chat history from Firestore: ", e);
+                showMessageModal("Error loading previous game. Please try starting a new game.", false);
+                showGameModeModal(); // Fallback to showing game mode selection
+            }
+        }
+
+        function showMessageModal(message, isGameOver) {
+            gameModal.classList.remove('hidden');
+            modalMessage.textContent = message;
+
+            modalActionButton.removeEventListener('click', handleModalClose);
+            modalActionButton.removeEventListener('click', startFreshGame);
+
+            if (isGameOver) {
+                modalActionButton.textContent = "New Game";
+                modalActionButton.classList.add('button-primary');
+                modalActionButton.addEventListener('click', startFreshGame);
+            } else {
+                modalActionButton.textContent = "OK";
+                modalActionButton.classList.add('button-primary');
+                modalActionButton.addEventListener('click', handleModalClose);
+            }
+        }
+
+        function handleModalClose() {
+            gameModal.classList.add('hidden');
+        }
+
+        function showGameModeModal() {
+            gamemodeModal.classList.remove('hidden');
+            setControlsEnabled(false); // Disable main game controls
+        }
+
+        function hideGameModeModal() {
+            gamemodeModal.classList.add('hidden');
+        }
+
+        function showDifficultyModal() {
+            difficultyModal.classList.remove('hidden');
+            setControlsEnabled(false); // Disable main game controls
+        }
+
+        function hideDifficultyModal() {
+            difficultyModal.classList.add('hidden');
+        }
+
+        function setControlsEnabled(enabled) {
+            userInput.disabled = !enabled;
+            submitGuessBtn.disabled = !enabled;
+            newGameBtn.disabled = !enabled;
+            giveUpBtn.disabled = !enabled;
+        }
+
+        async function callGeminiAPI(prompt, isInitialCall = false) {
+            loadingIndicator.classList.remove('hidden');
+            setControlsEnabled(false);
+
+            try {
+                // Ensure payloadContents are always correctly formatted from chatHistory
+                const payloadContents = chatHistory.map(msg => ({ role: msg.role, parts: [{ text: msg.text }] }));
+
+                const payload = { contents: payloadContents };
+                const apiKey = "AIzaSyB-rZ9SYbzGHJmNKvg1DkaktGII-wcNhaU"; 
+
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+                console.log("Gemini API URL:", apiUrl);
+
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    console.error("Gemini API error:", errorData);
+                    throw new Error(`API call failed with status ${response.status}: ${errorData.error.message || 'Unknown error'}`);
+                }
+
+                const result = await response.json();
+
+                if (result.candidates && result.candidates.length > 0 &&
+                    result.candidates[0].content && result.candidates[0].content.parts &&
+                    result.candidates[0].content.parts.length > 0) {
+                    const aiResponseText = result.candidates[0].content.parts[0].text;
+                    return aiResponseText;
+                } else {
+                    console.warn("Gemini API response structure unexpected:", result);
+                    return "I'm having trouble thinking. Can you try again?";
+                }
+            } catch (error) {
+                console.error("Error communicating with Gemini API:", error);
+                showMessageModal("Error: Could not get a response from the AI. Please try starting a new game.", false);
+                return "I'm sorry, I encountered an error. Please try again.";
+            } finally {
+                loadingIndicator.classList.add('hidden');
+                setControlsEnabled(true);
+            }
+        }
+
+        // Function to select game mode and then show difficulty
+        function selectGameMode(mode) {
+            currentGameMode = mode;
+            hideGameModeModal();
+            showDifficultyModal();
+        }
+
+        // Function to initiate AI game after difficulty selection
+        async function initiateAIGame(difficulty) {
+            hideDifficultyModal(); // Hide difficulty modal
+            currentDifficulty = difficulty; // Set global difficulty
+            chatHistoryDiv.innerHTML = ''; // Clear UI
+            chatHistory = []; // Clear in-memory chat history
+            aiGuessedCountry = ''; // Reset AI's chosen country
+            gameActive = true;
+            setControlsEnabled(true);
+            userInput.value = '';
+            userInput.focus();
+            guessCount = 0; // Reset guess count for new game
+
+            // Add an initial message to the UI to indicate game start
+            addMessage('ai', `Starting a new game in ${currentGameMode} mode on ${difficulty} difficulty!`, null, false, true);
+
+            let initialPrompt = "";
+            switch (currentGameMode) {
+                case 'Standard Mode':
+                    initialPrompt = `You are playing a country guessing game in Standard Mode. I need to guess the country you pick. For ${difficulty} difficulty, give me hints about its culture, famous landmarks, unique animals, historical achievements, or other distinctive characteristics. Do not directly mention its continent, specific regions, or use direct 'Is it in X?' questions. Do not reveal the country directly. Once I guess correctly, tell me I won. If I guess incorrectly, give me another hint. Let's start. Pick a country and give me your first hint.`;
+                    break;
+                case 'Capital Quest':
+                    initialPrompt = `You are playing a country guessing game in Capital Quest mode. I need to guess the country you pick. For ${difficulty} difficulty, give me hints *only* related to the capital city of the country. Do not mention the country name directly. Do not directly mention its continent, specific regions, or use direct 'Is it in X?' questions. Do not reveal the country directly. Once I guess correctly, tell me I won. If I guess incorrectly, give me another hint. Let's start. Pick a country and give me your first hint about its capital.`;
+                    break;
+                case 'Endless Mode':
+                    initialPrompt = `You are playing a country guessing game in Endless Mode. I need to guess the country you pick. For ${difficulty} difficulty, give me hints about its culture, famous landmarks, unique animals, historical achievements, or other distinctive characteristics. Do not directly mention its continent, specific regions, or use direct 'Is it in X?' questions. Do not reveal the country directly. Your goal is to keep giving me hints until I guess correctly, or give up. There is no limit to guesses. Let's start. Pick a country and give me your first hint.`;
+                    break;
+                case 'Hot & Cold':
+                    initialPrompt = `You are playing a country guessing game in Hot & Cold mode. I need to guess the country you pick. For ${difficulty} difficulty, give me hints about its culture, famous landmarks, unique animals, historical achievements, or other distinctive characteristics. After each of my guesses, tell me if I am "Hot" (very close), "Warm" (somewhat close), or "Cold" (far off) based on the geographic or thematic proximity of my guess to the correct country. Do not reveal the country directly. Once I guess correctly, tell me I won. If I guess incorrectly, give me another hint and a "Hot/Warm/Cold" indicator. Let's start. Pick a country and give me your first hint. (Note: The "Hot/Warm/Cold" feedback is based on AI's interpretation and not precise geographic data.)`;
+                    break;
+                case 'One Shot':
+                    initialPrompt = `You are playing a country guessing game in One Shot mode. I need to guess the country you pick. For ${difficulty} difficulty, give me ONE very strong, unique hint about the country. After I give my first guess, the game ends, whether I'm right or wrong. Do not directly mention its continent, specific regions, or use direct 'Is it in X?' questions. Do not reveal the country directly. If I guess correctly, tell me I won. If I guess incorrectly, tell me I lost and reveal the country. Let's start. Pick a country and give me your ONE strong hint.`;
+                    break;
+                default:
+                    initialPrompt = `You are playing a country guessing game. I need to guess the country you pick. Give me hints about its culture, famous landmarks, unique animals, historical achievements, or other distinctive characteristics. Do not directly mention its continent, specific regions, or use direct 'Is it in X?' questions. Do not reveal the country directly. Once I guess correctly, tell me I won. If I guess incorrectly, give me another hint. Let's start. Pick a country and give me your first hint.`;
+            }
+            
+            // This prompt is added to chatHistory for AI context, but NOT displayed in UI
+            addMessage('user', initialPrompt, null, false, false); 
+            const aiResponse = await callGeminiAPI(initialPrompt, true);
+            addMessage('ai', aiResponse); // This will save to DB and display in UI
+        }
+
+        // Game Start Function (for initial load or explicit new game)
+        async function startGame() {
+            userInput.value = '';
+            userInput.focus();
+            await loadChatHistory(); // Load existing history or show game mode selection
+        }
+
+        // Function to start a completely fresh game (clears DB history)
+        async function startFreshGame() {
+            gameModal.classList.add('hidden'); // Hide the game over modal
+            if (!isAuthReady) {
+                showMessageModal("Firebase not ready yet. Please wait.", false);
+                return;
+            }
+            // Clear all messages from Firestore for the current user
+            try {
+                const q = collection(db, `artifacts/${appId}/users/${userId}/chat_messages`);
+                const querySnapshot = await getDocs(q);
+                const deletePromises = [];
+                querySnapshot.forEach((doc) => {
+                    deletePromises.push(deleteDoc(doc.ref));
+                });
+                await Promise.all(deletePromises);
+                console.log("Previous chat history cleared from Firestore.");
+            } catch (e) {
+                console.error("Error clearing previous chat history from Firestore: ", e);
+                showMessageModal("Could not clear previous game history. Starting fresh anyway.", false);
+            }
+            showGameModeModal(); // Now show game mode selection
+        }
+
+
+        // Handle user guess/answer
+        async function handleSubmitGuess() {
+            if (!gameActive) {
+                showMessageModal("Please start a new game first!", false);
+                return;
+            }
+
+            const userText = userInput.value.trim();
+            if (userText === '') {
+                return;
+            }
+
+            addMessage('user', userText); // This will save to DB and display in UI
+            userInput.value = '';
+
+            guessCount++; // Increment guess count for One Shot mode
+
+            const aiResponse = await callGeminiAPI(userText);
+            addMessage('ai', aiResponse); // This will save to DB and display in UI
+
+            const lowerCaseAiResponse = aiResponse.toLowerCase();
+
+            // Special handling for One Shot mode
+            if (currentGameMode === 'One Shot' && guessCount >= 1) {
+                if (!(lowerCaseAiResponse.includes("congratulations") || lowerCaseAiResponse.includes("you won") || lowerCaseAiResponse.includes("you guessed it"))) {
+                    gameActive = false;
+                    console.log("One Shot game ended (incorrect guess). gameActive set to:", gameActive);
+                    showMessageModal(aiResponse + " This was One Shot mode. Click 'New Game' to play again.", true);
+                    setControlsEnabled(false);
+                    newGameBtn.disabled = false;
+                    return; // End function execution for One Shot
+                }
+            }
+
+            // Standard win/lose conditions for other modes or if One Shot was a win
+            if (lowerCaseAiResponse.includes("congratulations") || lowerCaseAiResponse.includes("you won") || lowerCaseAiResponse.includes("you guessed it")) {
+                gameActive = false;
+                console.log("Game ended by win. gameActive set to:", gameActive);
+                showMessageModal(aiResponse, true);
+                setControlsEnabled(false);
+                newGameBtn.disabled = false;
+            } else if (lowerCaseAiResponse.includes("the country was")) { // AI reveals the country after give up
+                gameActive = false;
+                console.log("Game ended by give up. gameActive set to:", gameActive);
+                showMessageModal(aiResponse, true);
+                setControlsEnabled(false);
+                newGameBtn.disabled = false;
+            }
+        }
+
+        // Event Listeners
+        submitGuessBtn.addEventListener('click', handleSubmitGuess);
+        userInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                handleSubmitGuess();
+            }
+        });
+
+        // "New Game" button in main UI
+        newGameBtn.addEventListener('click', () => {
+            startFreshGame();
+        });
+
+        giveUpBtn.addEventListener('click', async () => {
+            if (!gameActive) {
+                showMessageModal("No active game to give up on. Start a new one!", false);
+                return;
+            }
+            gameActive = false;
+            console.log("Game ended by give up. gameActive set to:", gameActive);
+            setControlsEnabled(false);
+            newGameBtn.disabled = false;
+
+            // This "I give up!" message IS meant to be displayed and saved
+            addMessage('user', "I give up! What was the country?"); 
+
+            const aiResponse = await callGeminiAPI("I give up! What was the country?");
+            addMessage('ai', aiResponse); // This will save to DB and display in UI
+
+            showMessageModal(aiResponse, true);
+        });
+
+        // Game Mode button event listeners
+        standardModeBtn.addEventListener('click', () => selectGameMode('Standard Mode'));
+        capitalQuestBtn.addEventListener('click', () => selectGameMode('Capital Quest'));
+        endlessModeBtn.addEventListener('click', () => selectGameMode('Endless Mode'));
+        hotColdBtn.addEventListener('click', () => selectGameMode('Hot & Cold'));
+        oneShotBtn.addEventListener('click', () => selectGameMode('One Shot'));
+
+        // Difficulty button event listeners
+        easyBtn.addEventListener('click', () => initiateAIGame('Easy'));
+        mediumBtn.addEventListener('click', () => initiateAIGame('Medium'));
+        hardBtn.addEventListener('click', () => initiateAIGame('Hard'));
+        insaneBtn.addEventListener('click', () => initiateAIGame('Insane'));
+
+
+        // Call to populate country suggestions when the script loads
+        populateCountrySuggestions();
+
+        // Initial call to start the game after Firebase auth is ready
+        // The onAuthStateChanged listener will call startGame() automatically
+        // once authentication is complete.
+    </script>
+</body>
+</html>
